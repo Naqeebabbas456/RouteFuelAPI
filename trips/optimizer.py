@@ -99,7 +99,10 @@ def optimize_fuel_plan(
     mpg: float,
 ) -> FuelPlan:
     """Return the minimum-cost fuel plan, or raise InfeasibleRouteError."""
-    stations = sorted(candidates, key=lambda c: c.mile_marker)
+    stations = sorted(
+        (c for c in candidates if c.mile_marker <= total_distance_miles + EPS),
+        key=lambda c: c.mile_marker,
+    )
     positions = [c.mile_marker for c in stations]
     _check_feasibility(positions, total_distance_miles, range_miles)
 
@@ -161,7 +164,7 @@ def optimize_fuel_plan(
     # buy at (priced there). With dense data the first station sits ~mile 0, so
     # this is a few thousandths of a gallon; folding it onto a real purchase
     # avoids emitting a spurious $0.00 stop.
-    lead_in = positions[0] * gpm
+    lead_in = min(positions[0], total_distance_miles) * gpm
     if lead_in > EPS:
         first_purchase = next((k for k, g in enumerate(bought) if g > EPS), 0)
         bought[first_purchase] += lead_in
