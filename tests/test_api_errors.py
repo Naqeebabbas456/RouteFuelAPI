@@ -44,6 +44,28 @@ def test_outside_usa_returns_400(client):
     assert "error" in resp.json()
 
 
+@pytest.mark.parametrize(
+    ("name", "lat", "lng"),
+    [("Toronto", 43.6532, -79.3832), ("Vancouver", 49.2827, -123.1207)],
+)
+def test_foreign_coordinates_are_rejected_without_any_routing_call(client, name, lat, lng):
+    """The real containment check, unmocked.
+
+    Regression test: a lat/lng bounding box accepted these and happily planned a
+    route starting in Canada. The endpoint must now 400, and must do so before
+    any provider call is attempted.
+    """
+    with patch("routing.providers.requests.request") as http:
+        resp = client.post(
+            "/api/v1/route-fuel-plan/",
+            {"start": {"lat": lat, "lng": lng}, "finish": {"lat": 29.7604, "lng": -95.3698}},
+            format="json",
+        )
+    assert resp.status_code == 400
+    assert "outside the USA" in resp.json()["error"]
+    http.assert_not_called()
+
+
 def test_provider_failure_returns_502(client):
     with patch("trips.services.get_route", side_effect=RouteProviderError("upstream down")):
         resp = client.post("/api/v1/route-fuel-plan/", COORDS, format="json")
